@@ -46,10 +46,10 @@ def img_cap(root_dir=None, img_id_list=None):
         # print(img.unsqueeze(0).shape)
         img = img.unsqueeze(0)
         tokens = model.caption_image(img.to(device), dataset.vocab)
-        print(f"{img_id}:image{idx}:{tokens}")
+        sentence = " ".join(tokens[1:-1])
+        print(f"{img_id}:{sentence}")
     model.train()
 
 
 # img_id_list = ["doggo.jpg","Important.png"]
 # img_cap(root_dir="Image", img_id_list=img_id_list)
-
