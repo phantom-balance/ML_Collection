@@ -51,5 +51,5 @@ def img_cap(root_dir=None, img_id_list=None):
     model.train()
 
 
-# img_id_list = ["doggo.jpg","Important.png"]
-# img_cap(root_dir="Image", img_id_list=img_id_list)
+img_id_list = ["doggo.jpg","Important.png"]
+img_cap(root_dir="Image", img_id_list=img_id_list)
