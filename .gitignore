@@ -1,7 +1,5 @@
 test.py
 flickr8k
 IMG_CAP.pth.tar
-GANs/dataset
-GANs/Image
-GANs/logs
-GANs/gan.py
+GANs/
+
