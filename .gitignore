@@ -2,4 +2,6 @@ test.py
 flickr8k
 IMG_CAP.pth.tar
 GANs/
-
+Text_generator/test.py
+Text_generator/runs
+Text_generator/names.txt:Zone.Identifier
