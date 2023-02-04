@@ -27,7 +27,7 @@ class RNN(nn.Module):
         self.num_layers = num_layers
 
         self.embed = nn.Embedding(input_size, embed_size)
-        self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x, hidden, cell):
