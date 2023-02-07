@@ -1,10 +1,17 @@
 import torch
+import torchvision
 import torch.nn as nn
 import string
 import random
-import sys
 import unidecode
 from torch.utils.tensorboard import SummaryWriter
+from mol_check import check_mol
+import rdkit
+from rdkit import Chem
+from rdkit.Chem import Draw
+import pickle
+import numpy as np
+
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -18,6 +25,9 @@ n_characters = len(all_characters)
 # Ascii format
 file = unidecode.unidecode(open('mol_smiles.txt').read())
 
+def save_checkpoint(state, filename=f"model/smiles_gen_lstm.pth.tar"):
+    print("__Saving Checkpoint__")
+    torch.save(state, filename)
 
 
 class RNN(nn.Module):
@@ -41,8 +51,9 @@ class RNN(nn.Module):
         cell = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
         return hidden, cell
 
+
 class Generator():
-    def __init__(self):
+    def __init__(self, load_model=True):
         self.chunk_len = 371
         self.num_epochs = 3000
         self.batch_size = 1
@@ -51,7 +62,14 @@ class Generator():
         self.hidden_size = 250
         self.num_layers = 2
         self.lr = 0.003
+        self.load_model = load_model
         self.rnn = RNN(n_characters, self.hidden_size, self.num_layers, self.embed_size, n_characters).to(device)
+        self.optimizer = torch.optim.Adam(self.rnn.parameters(), lr=self.lr)
+
+    def load_checkpoint(self, checkpoint):
+        print("__Loading Checkpoint__")
+        self.rnn.load_state_dict(checkpoint['state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
 
     def char_tensor(self, string):
         tensor = torch.zeros(len(string)).long()
@@ -72,7 +90,9 @@ class Generator():
 
         return text_input.long(), text_target.long() 
 
-    def generate(self, initial_str='C', predict_len=100, temperature=0.85):
+    def generate(self, initial_str='C', predict_len=200, temperature=0.85):
+        if self.load_model == True:
+            Generator.load_checkpoint(self, torch.load(f"model/smiles_gen_lstm.pth.tar", map_location=device))
         hidden, cell = self.rnn.init_hidden(batch_size=self.batch_size)
         initial_input = self.char_tensor(initial_str)
         predicted = initial_str
@@ -92,15 +112,14 @@ class Generator():
         
         return predicted
     
- # input_size, hidden_size, num_layers, embed_size, output_size   
-    def train(self):
-        # self.rnn = RNN(n_characters, self.hidden_size, self.num_layers, self.embed_size, n_characters).to(device)
 
-        optimizer = torch.optim.Adam(self.rnn.parameters(), lr=self.lr)
+    def train(self):
+        if self.load_model == True:
+            Generator.load_checkpoint(self, torch.load(f"model/smiles_gen_lstm.pth.tar"))#, map_location=device))
         criterion = nn.CrossEntropyLoss()
         writer = SummaryWriter(f'runs/names0')
 
-        print("=> Starring Training")
+        print("=> Starting Training")
 
         for epoch in range(1, self.num_epochs+1):
             inp, target = self.get_random_batch()
@@ -116,15 +135,34 @@ class Generator():
                 loss += criterion(output, target[:,c])
 
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
             loss = loss.item()/self.chunk_len
-
-            if epoch % self.print_every == 0:
-                print(f"Loss: {loss}")
-                print(self.generate())
 
             writer.add_scalar("Training_Loss:", loss, global_step=epoch)
 
+            if epoch % self.print_every == 0:
+                print(f"Loss: {loss}")
+                x = self.generate()
+                smiles_list = x.split()
 
-gennames = Generator()
-gennames.train()
+                with open(f'generated_mol{epoch}.pickle', 'wb') as handle:
+                    pickle.dump(smiles_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+                checkpoint = {'state_dict': self.rnn.state_dict(),
+                              'optimizer': self.optimizer.state_dict()
+                             }
+                save_checkpoint(checkpoint)
+
+if __name__ == "__main__":
+    gennames = Generator()
+    gennames.train()
+    j = np.linspace(100, 3000, int((3000-100)/100)+1, dtype="int32")
+    for i in j:
+        with open(f'generated_mol/generated_mol{i}.pickle', 'rb') as handle:
+            smiles_list = pickle.load(handle)
+            smiles_list.append("C")
+
+        print(smiles_list)
+        mol_list = [Chem.MolFromSmiles(smiles) for smiles in smiles_list]
+        img=Draw.MolsToGridImage(mol_list)
+        img.save(f'generated_mol/images/IMAGE_epoch:{i}.png')
